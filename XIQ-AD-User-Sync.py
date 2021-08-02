@@ -28,7 +28,7 @@ admin_emails = [
     'timjsmith24@protonmail.com'
     ]
 # generated xiq token with minimum "user" permissions
-XIQ_token = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0aW1qc21pdGgyNEBwcm90b25tYWlsLmNvbSIsInNjb3BlcyI6WyJhdXRoIiwiYXV0aDpyIiwidXNlciIsInVzZXI6ciJdLCJ1c2VySWQiOjIxNzkyMzIxLCJyb2xlIjoiQWRtaW5pc3RyYXRvciIsImN1c3RvbWVySWQiOjIxNzkxOTcxLCJjdXN0b21lck1vZGUiOjAsImhpcUVuYWJsZWQiOmZhbHNlLCJvd25lcklkIjoxNzkxNjEsIm9yZ0lkIjowLCJkYXRhQ2VudGVyIjoiSUFfR0NQIiwiaXNzIjoiZXh0cmVtZWNsb3VkaXEuY29tIiwiaWF0IjoxNjI0Mzg5NTgxLCJleHAiOjQ3Nzc5ODk1ODF9.eYcoiCDbcid4Zkj4MjByEKP7jcUG59xXqvtxI5QZ9DM"
+XIQ_token = "****"
 
 
 #-------------------------
