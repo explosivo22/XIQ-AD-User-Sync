@@ -193,7 +193,7 @@ def main():
     log_msg = "Successfully parsed " + str(len(ldap_users)) + " LDAP users"
     logging.info(log_msg)
     print(f"\n{log_msg}\n")
-    
+
     ldap_disabled = []
     for name, details in ldap_users.items():
         #print(name, details)

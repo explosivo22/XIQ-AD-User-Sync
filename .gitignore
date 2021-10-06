@@ -1,2 +1,6 @@
 /connections.log
 /venv
+AD_Server.code-workspace
+adminReport.csv
+*.log
+.vscode/settings.json
