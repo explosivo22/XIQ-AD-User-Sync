@@ -3,6 +3,7 @@ import requests
 import sys
 import os
 import logging
+from ldap3 import Server, Connection, ALL, NTLM, ALL_ATTRIBUTES, ALL_OPERATIONAL_ATTRIBUTES, AUTO_BIND_NO_TLS, SUBTREE
 
 # Global Variables - ADD CORRECT VALUES
 server_name = "DADOH-DC.SmithHome.local"
@@ -29,7 +30,7 @@ URL = "https://ia-gcp.extremecloudiq.com/"
 # logging
 PATH = os.path.dirname(os.path.abspath(__file__))
 logging.basicConfig(
-    filename='{}/XIQ-AD-PPSK-sync.log'.format(PATH),
+    filename='{}/XIQ-AD-PPSK-sync_APIv1.log'.format(PATH),
     filemode='a',
     level=os.environ.get("LOGLEVEL", "INFO"),
     format= '%(asctime)s: %(name)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S'
@@ -37,7 +38,7 @@ logging.basicConfig(
 # userAccountControl codes used for disabled accounts
 ldap_disable_codes = ['514','66050']
 
-from ldap3 import Server, Connection, ALL, NTLM, ALL_ATTRIBUTES, ALL_OPERATIONAL_ATTRIBUTES, AUTO_BIND_NO_TLS, SUBTREE
+
 
 
 
