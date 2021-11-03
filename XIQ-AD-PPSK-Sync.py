@@ -23,8 +23,9 @@ password = "Password123"
 XIQ_token = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0aW1qc21pdGgyNEBwcm90b25tYWlsLmNvbSIsInNjb3BlcyI6WyJhdXRoOnIiLCJzc2lkIiwic3NpZDpyIiwicGNnLWtleS1iYXNlZCIsInBjZy1rZXktYmFzZWQ6ciJdLCJ1c2VySWQiOjIxNzkyMzIxLCJyb2xlIjoiQWRtaW5pc3RyYXRvciIsImN1c3RvbWVySWQiOjIxNzkxOTcxLCJjdXN0b21lck1vZGUiOjAsImhpcUVuYWJsZWQiOmZhbHNlLCJvd25lcklkIjoxNzkxNjEsIm9yZ0lkIjowLCJkYXRhQ2VudGVyIjoiSUFfR0NQIiwiaXNzIjoiZXh0cmVtZWNsb3VkaXEuY29tIiwiaWF0IjoxNjMzMzU2NDUxLCJleHAiOjE2Mzg2MjY4Mzd9.hULw46nVMpure8KtssZJ5jxfL_9IwV8l0cA8WlZFGq4"
 
 group_roles = [
-    # AD GROUP Name, XIQ group ID
-    ("Staff_User", "769490635823870"),
+    # AD GROUP Distinguished Name, XIQ group ID
+    ("CN=Staff_User,CN=Users,DC=SmithHome,DC=local", "769490635824395"),
+    ("CN=Testing,OU=Sub1,OU=Special,DC=Smithhome,DC=local", "769490635824436")
 ]
 
 
@@ -55,7 +56,7 @@ def retrieveADUsers(ad_group):
         conn = Connection(server, user='{}\\{}'.format(domain_name, user_name), password=password, authentication=NTLM, auto_bind=True)
         conn.search(
                 search_base= SearchBase,
-                search_filter='(&(objectClass=user)(memberof:1.2.840.113556.1.4.1941:=cn={},cn=users,{}))'.format(ad_group, SearchBase),
+                search_filter='(&(objectClass=user)(memberof:1.2.840.113556.1.4.1941:={}))'.format(ad_group),
                 search_scope=SUBTREE,
                 attributes = ['objectClass', 'userAccountControl', 'sAMAccountName', 'name', 'mail'])
         ad_result = conn.entries

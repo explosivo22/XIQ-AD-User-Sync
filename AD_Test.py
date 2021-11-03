@@ -1,41 +1,59 @@
 import sys
+import socket
 from ldap3 import Server, Connection, ALL, NTLM, ALL_ATTRIBUTES, ALL_OPERATIONAL_ATTRIBUTES, AUTO_BIND_NO_TLS, SUBTREE
 
 # Global Variables - ADD CORRECT VALUES
-server_name = "DADOH-DC.SmithHome.local"
-domain_name = "SMITHHOME"
-user_name = "Administrator"
-password = "Password123"
-usergroupID = "769490635824031"
-ad_group = "Staff_User"
-fqdn = "smithhome.local"
+server_name = "enter the server name/ IP"
+domain_name = "enter the domain name"
+user_name = "enter AD username"
+password = " enter AD password"
+usergroupID = '*****'
+ad_group = "Enter AD group ID"
+fqdn = "Enter fqdn"
 
 
 def retrieveADUsers(ad_group):
     #Building search base from fqdn
     subdir_list = fqdn.split('.')
-    tdl = subdir_list[-1]
-    subdir_list = subdir_list[:-1]
-    SearchBase = 'DC=' + ',DC='.join(subdir_list) + ',DC=' + tdl
-    try:
-        server = Server(server_name, get_info=ALL)
-        conn = Connection(server, user='{}\\{}'.format(domain_name, user_name), password=password, authentication=NTLM, auto_bind=True)
-        conn.search(
-            search_base= SearchBase,
-            search_filter='(&(objectClass=user)(memberof:1.2.840.113556.1.4.1941:=cn={},cn=users,{}))'.format(ad_group, SearchBase),
-            search_scope=SUBTREE,
-            attributes = ['objectClass', 'userAccountControl', 'sAMAccountName', 'name', 'mail'])
-        ad_result = conn.entries
-        conn.unbind()
-        return ad_result
-    except:
-        log_msg = f"Unable to reach server {server_name}"
-        print(log_msg)
-        print("script exiting....")
-        raise SystemExit
+    if len(subdir_list) > 1:
+        tdl = subdir_list[-1]
+        subdir_list = subdir_list[:-1]
+        SearchBase = 'DC=' + ',DC='.join(subdir_list) + ',DC=' + tdl
+    else:
+        SearchBase = 'DC=' + fqdn
+    print(SearchBase)
+    #try:
+    server = Server(server_name, get_info=ALL)
+    conn = Connection(server, user='{}\\{}'.format(domain_name, user_name), password=password, authentication=NTLM, auto_bind=True)
+    conn.search(
+        search_base= SearchBase,
+        search_filter='(&(objectClass=user)(memberof:1.2.840.113556.1.4.1941:=cn={},cn=users,{}))'.format(ad_group, SearchBase),
+        search_scope=SUBTREE,
+        attributes = ['objectClass', 'userAccountControl', 'sAMAccountName', 'name', 'mail'])
+    ad_result = conn.entries
+    conn.unbind()
+    return ad_result
+    #except:
+    #    log_msg = f"Unable to reach server {server_name}"
+    #    print(log_msg)
+    #    print("script exiting....")
+    #    raise SystemExit
     
 
 def main():
+    a = server_name.split('.')
+    if len(a) != 4:
+        try:
+            ip = socket.gethostbyname(server_name)
+        except socket.gaierror:
+            print ("cannot resolve hostname: ", server_name	)
+            raise SystemExit
+        print("The ip address for {} is {}".format(server_name, ip))	
+    else:
+        ip = server_name
+        dns = socket.gethostbyaddr(ip)
+        device = dns[0]
+        print("DNS for {} is {}".format(ip, device))
     ldap_users = {}
     ldap_capture_success = True
     ad_result = retrieveADUsers(ad_group)
