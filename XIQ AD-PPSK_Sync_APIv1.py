@@ -196,7 +196,7 @@ def main():
             logging.warning(log_msg)
             print(log_msg)
             continue
-        if not any(d['userName'] == name for d in ppsk_users) and not any(d == details['userAccountControl'] for d in ldap_disable_codes):
+        if not any(d['userName'] == details['email'] for d in ppsk_users) and not any(d == details['userAccountControl'] for d in ldap_disable_codes):
             try:
                 CreatePPSKuser(name, details["email"])
             except TypeError as e:
