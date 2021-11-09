@@ -12,10 +12,10 @@ from ldap3 import Server, Connection, ALL, NTLM, SUBTREE
 
 # Global Variables - ADD CORRECT VALUES
 server_name = "DADOH-DC.SmithHome.local"
-domain_name = "SMITHHOME"
-fqdn = "smithhome.local"
+domain_name = "smithhome.local"
 user_name = "Administrator"
 password = "Password123"
+
 #XIQ_username = "enter your ExtremeCloudIQ Username"
 #XIQ_password = "enter your ExtremeCLoudIQ password"
 ####OR###
@@ -24,8 +24,8 @@ XIQ_token = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0aW1qc21pdGgyNEBwcm90b25tYWlsLmNvbS
 
 group_roles = [
     # AD GROUP Distinguished Name, XIQ group ID
-    ("CN=Staff_User,CN=Users,DC=SmithHome,DC=local", "769490635824395"),
-    ("CN=Testing,OU=Sub1,OU=Special,DC=Smithhome,DC=local", "769490635824436")
+    ("CN=Staff_User,CN=Users,DC=SmithHome,DC=local", "769490635824436"),    #Sync Staff_User with Home_Hive
+    ("CN=Guest_User,CN=Users,DC=SmithHome,DC=local", "769490635824395")     #Sync Guest_user with Test_Hive
 ]
 
 
@@ -39,7 +39,7 @@ logging.basicConfig(
     format= '%(asctime)s: %(name)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S'
 )
 # userAccountControl codes used for disabled accounts
-ldap_disable_codes = ['514','66050']
+ldap_disable_codes = ['514','642','66050','66178']
 
 URL = "https://api.extremecloudiq.com"
 headers = {"Accept": "application/json", "Content-Type": "application/json"}
@@ -47,7 +47,7 @@ headers = {"Accept": "application/json", "Content-Type": "application/json"}
 
 def retrieveADUsers(ad_group):
     #Building search base from fqdn
-    subdir_list = fqdn.split('.')
+    subdir_list = domain_name.split('.')
     tdl = subdir_list[-1]
     subdir_list = subdir_list[:-1]
     SearchBase = 'DC=' + ',DC='.join(subdir_list) + ',DC=' + tdl
@@ -116,8 +116,8 @@ def CreatePPSKuser(name,mail, usergroupID):
         raise TypeError(log_msg)
 
     elif response.status_code ==200:
-        logging.info(f"succesfully created PPSK user {name}")
-        print(f"succesfully created PPSK user {name}")
+        logging.info(f"successfully created PPSK user {name}")
+        print(f"successfully created PPSK user {name}")
     #print(response)
 
 
@@ -177,7 +177,7 @@ def deleteuser(userId):
         logging.warning(f"\t\t{response}")
         raise TypeError(log_msg)
     elif response.status_code == 200:
-        logging.info(f"succesfully deleted PPSK user {userId}")
+        logging.info(f"successfully deleted PPSK user {userId}")
         return 'Success'
     #print(response)
 
@@ -213,6 +213,9 @@ def main():
             print("script exiting....")
             # not having ppsk will break later line - if not any(d['name'] == name for d in ppsk_users):
             raise SystemExit
+    log_msg = ("Successfully parsed " + str(len(ppsk_users)) + " XIQ users")
+    logging.info(log_msg)
+    print(f"\n{log_msg}")
 
 
     ldap_users = {}
@@ -244,12 +247,12 @@ def main():
 
     log_msg = "Successfully parsed " + str(len(ldap_users)) + " LDAP users"
     logging.info(log_msg)
-    print(f"\n{log_msg}\n")
+    print(f"{log_msg}\n")
 
     ldap_disabled = []
     for name, details in ldap_users.items():
         if details['email'] == '[]':
-            log_msg = (f"User {name} doesn't have a email set and will not be created in xiq")
+            log_msg = (f"User {name} doesn't have an email set and will not be created in xiq")
             logging.warning(log_msg)
             print(log_msg)
             continue
