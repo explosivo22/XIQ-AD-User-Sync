@@ -8,24 +8,30 @@ import time
 import os
 import logging
 from ldap3 import Server, Connection, ALL, NTLM, SUBTREE
+####################################
+# written by:   Tim Smith
+# e-mail:       tismith@extremenetworks.com
+# date:         29th November 2021
+# version:      2.0.3
+####################################
 
 
 # Global Variables - ADD CORRECT VALUES
-server_name = "DADOH-DC.SmithHome.local"
-domain_name = "smithhome.local"
-user_name = "Administrator"
-password = "Password123"
+server_name = "enter the server name/ IP"
+domain_name = "enter the domain name"
+user_name = "enter AD username"
+password = " enter AD password"
 
 #XIQ_username = "enter your ExtremeCloudIQ Username"
 #XIQ_password = "enter your ExtremeCLoudIQ password"
 ####OR###
-## TOKEN permission needs - ssids, pcg-key-based
-XIQ_token = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0aW1qc21pdGgyNEBwcm90b25tYWlsLmNvbSIsInNjb3BlcyI6WyJhdXRoOnIiLCJzc2lkIiwic3NpZDpyIiwicGNnLWtleS1iYXNlZCIsInBjZy1rZXktYmFzZWQ6ciJdLCJ1c2VySWQiOjIxNzkyMzIxLCJyb2xlIjoiQWRtaW5pc3RyYXRvciIsImN1c3RvbWVySWQiOjIxNzkxOTcxLCJjdXN0b21lck1vZGUiOjAsImhpcUVuYWJsZWQiOmZhbHNlLCJvd25lcklkIjoxNzkxNjEsIm9yZ0lkIjowLCJkYXRhQ2VudGVyIjoiSUFfR0NQIiwiaXNzIjoiZXh0cmVtZWNsb3VkaXEuY29tIiwiaWF0IjoxNjMzMzU2NDUxLCJleHAiOjE2Mzg2MjY4Mzd9.hULw46nVMpure8KtssZJ5jxfL_9IwV8l0cA8WlZFGq4"
+## TOKEN permission needs - enduser, pcg:key
+XIQ_token = "****"
 
 group_roles = [
     # AD GROUP Distinguished Name, XIQ group ID
-    ("CN=Staff_User,CN=Users,DC=SmithHome,DC=local", "769490635824436"),    #Sync Staff_User with Home_Hive
-    ("CN=Guest_User,CN=Users,DC=SmithHome,DC=local", "769490635824395")     #Sync Guest_user with Test_Hive
+    ("AD Group Distinguished Name", "XIQ User Group ID"),
+    ("AD Group Distinguished Name", "XIQ User Group ID")
 ]
 
 
@@ -98,7 +104,7 @@ def GetaccessToken(XIQ_username, XIQ_password):
 
 
 def CreatePPSKuser(name,mail, usergroupID):
-    url = URL + "/ssids/users"
+    url = URL + "/endusers"
 
     payload = json.dumps({"user_group_id": usergroupID ,"name": name,"user_name": name,"password": "", "email_address": mail, "email_password_delivery": mail})
 
@@ -130,7 +136,7 @@ def retrievePPSKusers(pageSize, usergroupID):
     ppskusers = []
 
     while page < 1000:
-        url = URL + "/ssids/users?page=" + str(page) + "&limit=" + str(pageSize) + "&user_group_ids=" + usergroupID
+        url = URL + "/endusers?page=" + str(page) + "&limit=" + str(pageSize) + "&user_group_ids=" + usergroupID
         #print("Retrieving next page of PPSK users from ExtremeCloudIQ starting at page " + str(page) + " url: " + url)
 
         # Get the next page of the ppsk users
@@ -164,7 +170,7 @@ def retrievePPSKusers(pageSize, usergroupID):
 
 
 def deleteuser(userId):
-    url = URL + "/ssids/users/" + str(userId)
+    url = URL + "/endusers/" + str(userId)
     #print("\nTrying to delete user using this URL and payload\n " + url)
     response = requests.delete(url, headers=headers, verify=True)
     if response is None:
@@ -177,8 +183,7 @@ def deleteuser(userId):
         logging.warning(f"\t\t{response}")
         raise TypeError(log_msg)
     elif response.status_code == 200:
-        logging.info(f"successfully deleted PPSK user {userId}")
-        return 'Success'
+        return 'Success', str(userId)
     #print(response)
 
 def main():
@@ -280,7 +285,7 @@ def main():
             # check if any xiq user is not included in active ldap users
             if not any(d['email'] == email for d in ldap_users.values()):
                 try:
-                    result = deleteuser(xiqid)
+                    result, userid = deleteuser(xiqid)
                 except TypeError as e:
                     logmsg = f"Failed to delete user {email}  with error {e}"
                     logging.error(logmsg)
@@ -292,7 +297,7 @@ def main():
                     print(log_msg)
                     continue
                 if result == 'Success':
-                    log_msg = f"User {email} was successfully deleted."
+                    log_msg = f"User {email} - {userid} was successfully deleted."
                     logging.info(log_msg)
                     print(log_msg)  
     else:

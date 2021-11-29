@@ -2,6 +2,13 @@ import sys
 import socket
 from ldap3 import Server, Connection, ALL, NTLM, ALL_ATTRIBUTES, ALL_OPERATIONAL_ATTRIBUTES, AUTO_BIND_NO_TLS, SUBTREE
 
+####################################
+# written by:   Tim Smith
+# e-mail:       tismith@extremenetworks.com
+# date:         29th November 2021
+# version:      2.0.3
+####################################
+
 # Global Variables - ADD CORRECT VALUES
 server_name = "enter the server name/ IP"
 domain_name = "enter the domain name"

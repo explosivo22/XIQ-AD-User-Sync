@@ -5,6 +5,13 @@ import os
 import logging
 from ldap3 import Server, Connection, ALL, NTLM, ALL_ATTRIBUTES, ALL_OPERATIONAL_ATTRIBUTES, AUTO_BIND_NO_TLS, SUBTREE
 
+####################################
+# written by:   Tim Smith
+# e-mail:       tismith@extremenetworks.com
+# date:         8th November 2021
+# version:      1.0.1
+####################################
+
 # Global Variables - ADD CORRECT VALUES
 server_name = "enter the server name/ IP"
 domain_name = "enter the domain name"
