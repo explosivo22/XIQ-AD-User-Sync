@@ -8,23 +8,30 @@ import time
 import os
 import logging
 from ldap3 import Server, Connection, ALL, NTLM, SUBTREE
+####################################
+# written by:   Tim Smith
+# e-mail:       tismith@extremenetworks.com
+# date:         29th November 2021
+# version:      2.0.3
+####################################
 
 
 # Global Variables - ADD CORRECT VALUES
-server_name = "DADOH-DC.SmithHome.local"
-domain_name = "SMITHHOME"
-fqdn = "smithhome.local"
-user_name = "Administrator"
-password = "Password123"
+server_name = "enter the server name/ IP"
+domain_name = "enter the domain name"
+user_name = "enter AD username"
+password = " enter AD password"
+
 #XIQ_username = "enter your ExtremeCloudIQ Username"
 #XIQ_password = "enter your ExtremeCLoudIQ password"
 ####OR###
-## TOKEN permission needs - ssids, pcg-key-based
-XIQ_token = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0aW1qc21pdGgyNEBwcm90b25tYWlsLmNvbSIsInNjb3BlcyI6WyJhdXRoOnIiLCJzc2lkIiwic3NpZDpyIiwicGNnLWtleS1iYXNlZCIsInBjZy1rZXktYmFzZWQ6ciJdLCJ1c2VySWQiOjIxNzkyMzIxLCJyb2xlIjoiQWRtaW5pc3RyYXRvciIsImN1c3RvbWVySWQiOjIxNzkxOTcxLCJjdXN0b21lck1vZGUiOjAsImhpcUVuYWJsZWQiOmZhbHNlLCJvd25lcklkIjoxNzkxNjEsIm9yZ0lkIjowLCJkYXRhQ2VudGVyIjoiSUFfR0NQIiwiaXNzIjoiZXh0cmVtZWNsb3VkaXEuY29tIiwiaWF0IjoxNjMzMzU2NDUxLCJleHAiOjE2Mzg2MjY4Mzd9.hULw46nVMpure8KtssZJ5jxfL_9IwV8l0cA8WlZFGq4"
+## TOKEN permission needs - enduser, pcg:key
+XIQ_token = "****"
 
 group_roles = [
-    # AD GROUP Name, XIQ group ID
-    ("Staff_User", "769490635823870"),
+    # AD GROUP Distinguished Name, XIQ group ID
+    ("AD Group Distinguished Name", "XIQ User Group ID"),
+    ("AD Group Distinguished Name", "XIQ User Group ID")
 ]
 
 
@@ -38,7 +45,7 @@ logging.basicConfig(
     format= '%(asctime)s: %(name)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S'
 )
 # userAccountControl codes used for disabled accounts
-ldap_disable_codes = ['514','66050']
+ldap_disable_codes = ['514','642','66050','66178']
 
 URL = "https://api.extremecloudiq.com"
 headers = {"Accept": "application/json", "Content-Type": "application/json"}
@@ -46,7 +53,7 @@ headers = {"Accept": "application/json", "Content-Type": "application/json"}
 
 def retrieveADUsers(ad_group):
     #Building search base from fqdn
-    subdir_list = fqdn.split('.')
+    subdir_list = domain_name.split('.')
     tdl = subdir_list[-1]
     subdir_list = subdir_list[:-1]
     SearchBase = 'DC=' + ',DC='.join(subdir_list) + ',DC=' + tdl
@@ -55,7 +62,7 @@ def retrieveADUsers(ad_group):
         conn = Connection(server, user='{}\\{}'.format(domain_name, user_name), password=password, authentication=NTLM, auto_bind=True)
         conn.search(
                 search_base= SearchBase,
-                search_filter='(&(objectClass=user)(memberof:1.2.840.113556.1.4.1941:=cn={},cn=users,{}))'.format(ad_group, SearchBase),
+                search_filter='(&(objectClass=user)(memberof:1.2.840.113556.1.4.1941:={}))'.format(ad_group),
                 search_scope=SUBTREE,
                 attributes = ['objectClass', 'userAccountControl', 'sAMAccountName', 'name', 'mail'])
         ad_result = conn.entries
@@ -97,7 +104,7 @@ def GetaccessToken(XIQ_username, XIQ_password):
 
 
 def CreatePPSKuser(name,mail, usergroupID):
-    url = URL + "/ssids/users"
+    url = URL + "/endusers"
 
     payload = json.dumps({"user_group_id": usergroupID ,"name": name,"user_name": name,"password": "", "email_address": mail, "email_password_delivery": mail})
 
@@ -115,8 +122,8 @@ def CreatePPSKuser(name,mail, usergroupID):
         raise TypeError(log_msg)
 
     elif response.status_code ==200:
-        logging.info(f"succesfully created PPSK user {name}")
-        print(f"succesfully created PPSK user {name}")
+        logging.info(f"successfully created PPSK user {name}")
+        print(f"successfully created PPSK user {name}")
     #print(response)
 
 
@@ -129,7 +136,7 @@ def retrievePPSKusers(pageSize, usergroupID):
     ppskusers = []
 
     while page < 1000:
-        url = URL + "/ssids/users?page=" + str(page) + "&limit=" + str(pageSize) + "&user_group_ids=" + usergroupID
+        url = URL + "/endusers?page=" + str(page) + "&limit=" + str(pageSize) + "&user_group_ids=" + usergroupID
         #print("Retrieving next page of PPSK users from ExtremeCloudIQ starting at page " + str(page) + " url: " + url)
 
         # Get the next page of the ppsk users
@@ -163,7 +170,7 @@ def retrievePPSKusers(pageSize, usergroupID):
 
 
 def deleteuser(userId):
-    url = URL + "/ssids/users/" + str(userId)
+    url = URL + "/endusers/" + str(userId)
     #print("\nTrying to delete user using this URL and payload\n " + url)
     response = requests.delete(url, headers=headers, verify=True)
     if response is None:
@@ -176,8 +183,7 @@ def deleteuser(userId):
         logging.warning(f"\t\t{response}")
         raise TypeError(log_msg)
     elif response.status_code == 200:
-        logging.info(f"succesfully deleted PPSK user {userId}")
-        return 'Success'
+        return 'Success', str(userId)
     #print(response)
 
 def main():
@@ -212,6 +218,9 @@ def main():
             print("script exiting....")
             # not having ppsk will break later line - if not any(d['name'] == name for d in ppsk_users):
             raise SystemExit
+    log_msg = ("Successfully parsed " + str(len(ppsk_users)) + " XIQ users")
+    logging.info(log_msg)
+    print(f"\n{log_msg}")
 
 
     ldap_users = {}
@@ -243,12 +252,12 @@ def main():
 
     log_msg = "Successfully parsed " + str(len(ldap_users)) + " LDAP users"
     logging.info(log_msg)
-    print(f"\n{log_msg}\n")
+    print(f"{log_msg}\n")
 
     ldap_disabled = []
     for name, details in ldap_users.items():
         if details['email'] == '[]':
-            log_msg = (f"User {name} doesn't have a email set and will not be created in xiq")
+            log_msg = (f"User {name} doesn't have an email set and will not be created in xiq")
             logging.warning(log_msg)
             print(log_msg)
             continue
@@ -276,7 +285,7 @@ def main():
             # check if any xiq user is not included in active ldap users
             if not any(d['email'] == email for d in ldap_users.values()):
                 try:
-                    result = deleteuser(xiqid)
+                    result, userid = deleteuser(xiqid)
                 except TypeError as e:
                     logmsg = f"Failed to delete user {email}  with error {e}"
                     logging.error(logmsg)
@@ -288,7 +297,7 @@ def main():
                     print(log_msg)
                     continue
                 if result == 'Success':
-                    log_msg = f"User {email} was successfully deleted."
+                    log_msg = f"User {email} - {userid} was successfully deleted."
                     logging.info(log_msg)
                     print(log_msg)  
     else:

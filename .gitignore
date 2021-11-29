@@ -4,3 +4,6 @@ AD_Server.code-workspace
 adminReport.csv
 *.log
 .vscode/settings.json
+test.py
+.DS_Store
+CreatePPSKUserV1.py
