@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import json
 from typing import Type
 import requests
@@ -11,8 +12,8 @@ from ldap3 import Server, Connection, ALL, NTLM, SUBTREE
 ####################################
 # written by:   Tim Smith
 # e-mail:       tismith@extremenetworks.com
-# date:         29th November 2021
-# version:      2.0.3
+# date:         14th December 2021
+# version:      2.0.4
 ####################################
 
 
@@ -56,7 +57,10 @@ def retrieveADUsers(ad_group):
     subdir_list = domain_name.split('.')
     tdl = subdir_list[-1]
     subdir_list = subdir_list[:-1]
-    SearchBase = 'DC=' + ',DC='.join(subdir_list) + ',DC=' + tdl
+    if subdir_list:
+        SearchBase = 'DC=' + ',DC='.join(subdir_list) + ',DC=' + tdl
+    else:
+        SearchBase = 'DC=' + tdl
     try:
         server = Server(server_name, get_info=ALL)
         conn = Connection(server, user='{}\\{}'.format(domain_name, user_name), password=password, authentication=NTLM, auto_bind=True)
