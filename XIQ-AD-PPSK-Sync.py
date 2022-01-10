@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
 import json
-from typing import Type
 import requests
-import secrets
-import string
 import sys
-import time
 import os
 import logging
 from ldap3 import Server, Connection, ALL, NTLM, SUBTREE
 ####################################
 # written by:   Tim Smith
 # e-mail:       tismith@extremenetworks.com
-# date:         14th December 2021
-# version:      2.0.4
+# date:         ? December 2021
+# version:      2.0.5
 ####################################
 
 
@@ -34,6 +30,17 @@ group_roles = [
     ("AD Group Distinguished Name", "XIQ User Group ID"),
     ("AD Group Distinguished Name", "XIQ User Group ID")
 ]
+
+PCG_Enable = False
+
+PCG_Maping = {
+    "XIQ User Group ID" : {
+        "UserGroupName": "XIQ User Group Name",
+        "policy_id": "Network Policy ID associated with PCG",
+         "policy_name": "Network Policy name associated with PCG"
+    }
+}
+
 
 
 #-------------------------
@@ -81,7 +88,7 @@ def retrieveADUsers(ad_group):
     
 
 
-def GetaccessToken(XIQ_username, XIQ_password):
+def getAccessToken(XIQ_username, XIQ_password):
     url = URL + "/login"
     payload = json.dumps({"username": XIQ_username, "password": XIQ_password})
     response = requests.post(url, headers=headers, data=payload)
@@ -107,7 +114,7 @@ def GetaccessToken(XIQ_username, XIQ_password):
         raise TypeError(log_msg)
 
 
-def CreatePPSKuser(name,mail, usergroupID):
+def createPPSKuser(name,mail, usergroupID):
     url = URL + "/endusers"
 
     payload = json.dumps({"user_group_id": usergroupID ,"name": name,"user_name": name,"password": "", "email_address": mail, "email_password_delivery": mail})
@@ -128,20 +135,17 @@ def CreatePPSKuser(name,mail, usergroupID):
     elif response.status_code ==200:
         logging.info(f"successfully created PPSK user {name}")
         print(f"successfully created PPSK user {name}")
+        return True
     #print(response)
 
 
 
 
-def retrievePPSKusers(pageSize, usergroupID):
-    #print("Retrieve all PPSK users  from ExtremeCloudIQ")
+def retrievePPSKUsers(pageSize, usergroupID):
     page = 1
-
-    ppskusers = []
-
+    ppskUsers = []
     while page < 1000:
         url = URL + "/endusers?page=" + str(page) + "&limit=" + str(pageSize) + "&user_group_ids=" + usergroupID
-        #print("Retrieving next page of PPSK users from ExtremeCloudIQ starting at page " + str(page) + " url: " + url)
 
         # Get the next page of the ppsk users
         response = requests.get(url, headers=headers, verify = True)
@@ -152,28 +156,22 @@ def retrievePPSKusers(pageSize, usergroupID):
 
         elif response.status_code != 200:
             log_msg = f"Error retrieving PPSK users from XIQ - HTTP Status Code: {str(response.status_code)}"
-            logging.error(f"Error retrieving PPSK users from XIQ - HTTP Status Code: {str(response.status_code)}")
+            logging.error(log_msg)
             logging.warning(f"\t\t{response.json()}")
             raise TypeError(log_msg)
-
     
         rawList = response.json()['data']
-        #for name in rawList:
-        #    print(name)
-        #print("Retrieved " + str(len(rawList)) + " users on this page")
-        ppskusers = ppskusers + rawList
-        
+        ppskUsers = ppskUsers + rawList
 
         if len(rawList) == 0:
             #print("Reached the final page - stopping to retrieve users ")
             break
-
         page = page + 1
-    return ppskusers
+    return ppskUsers
 
 
 
-def deleteuser(userId):
+def deleteUser(userId):
     url = URL + "/endusers/" + str(userId)
     #print("\nTrying to delete user using this URL and payload\n " + url)
     response = requests.delete(url, headers=headers, verify=True)
@@ -190,11 +188,71 @@ def deleteuser(userId):
         return 'Success', str(userId)
     #print(response)
 
-def main():
+def addUserToPcg(policy_id, name, email, user_group_name):
+    url = URL + "/pcgs/key-based/network-policy-" + str(policy_id) + "/users"
+    payload = json.dumps({
+                  "users": [
+                    {
+                      "name": name,
+                      "email": email,
+                      "user_group_name": user_group_name
+                    }
+                  ]
+                })
+    response = requests.post(url, headers=headers, data=payload, verify=True)
+    if response is None:
+        log_msg = f"- no response!"
+        logging.error(log_msg)
+        raise TypeError(log_msg)
+    elif response.status_code != 202:
+        log_msg = f"HTTP Status Code: {str(response.status_code)}"
+        logging.error(log_msg)
+        logging.warning(f"\t\t{response}")
+        raise TypeError(log_msg)
+    elif response.status_code == 202:
+        return 'Success'
 
+def retrievePCGUsers(policy_id):
+    url = URL + "/pcgs/key-based/network-policy-" + str(policy_id) + "/users"
+    response = requests.get(url, headers=headers, verify = True)
+    if response is None:
+        log_msg = f"Error retrieving PCG users for policy id {policy_id} from XIQ - no response!"
+        logging.error(log_msg)
+        raise TypeError(log_msg)
+    elif response.status_code != 200:
+        log_msg = f"Error retrieving PCG users for policy id {policy_id} from XIQ - HTTP Status Code: {str(response.status_code)}"
+        logging.error(log_msg)
+        logging.warning(f"\t\t{response.json()}")
+        raise TypeError(log_msg)
+
+    rawList = response.json()
+    return rawList
+
+def deletePCGUsers(policy_id, userId):
+    url = URL + "/pcgs/key-based/network-policy-" + str(policy_id) + "/users"
+    payload = json.dumps({
+                    "user_ids": [
+                                    userId
+                                ]
+                })
+    response = requests.delete(url, headers=headers, data=payload, verify = True)
+    if response is None:
+        log_msg = f"Error deleting PPSK user {userId} - no response!"
+        logging.error(log_msg)
+        raise TypeError(log_msg)
+    elif response.status_code != 202:
+        log_msg = f"Error deleting PPSK user {userId} - HTTP Status Code: {str(response.status_code)}"
+        logging.error(log_msg)
+        logging.warning(f"\t\t{response}")
+        raise TypeError(log_msg)
+    elif response.status_code == 202:
+        return 'Success'
+
+
+def main():
     if 'XIQ_token' not in globals():
         try:
-            login = GetaccessToken(XIQ_username, XIQ_password)
+            login = getAccessToken(XIQ_username, XIQ_password)
         except TypeError as e:
             print(e)
             raise SystemExit
@@ -205,11 +263,14 @@ def main():
             raise SystemExit     
     else:
         headers["Authorization"] = "Bearer " + XIQ_token
-    ListofADgroups, ListofXIQUserGroups = zip(*group_roles)
+ 
+    ListOfADgroups, ListOfXIQUserGroups = zip(*group_roles)
+
+    # Collect PSK users
     ppsk_users = []
-    for usergroupID in ListofXIQUserGroups:
+    for usergroupID in ListOfXIQUserGroups:
         try:
-            ppsk_users += retrievePPSKusers(100,usergroupID)
+            ppsk_users += retrievePPSKUsers(100,usergroupID)
         except TypeError as e:
             print(e)
             print("script exiting....")
@@ -226,7 +287,7 @@ def main():
     logging.info(log_msg)
     print(f"\n{log_msg}")
 
-
+    # Collect LDAP Users
     ldap_users = {}
     ldap_capture_success = True
     for ad_group, xiq_user_role in group_roles:
@@ -258,8 +319,10 @@ def main():
     logging.info(log_msg)
     print(f"{log_msg}\n")
 
+    # Create PPSK Users
     ldap_disabled = []
     for name, details in ldap_users.items():
+        user_created = False
         if details['email'] == '[]':
             log_msg = (f"User {name} doesn't have an email set and will not be created in xiq")
             logging.warning(log_msg)
@@ -267,7 +330,7 @@ def main():
             continue
         if not any(d['name'] == name for d in ppsk_users) and not any(d == details['userAccountControl'] for d in ldap_disable_codes):
             try:
-                CreatePPSKuser(name, details["email"], details['xiq_role'])
+                user_created = createPPSKuser(name, details["email"], details['xiq_role'])
             except TypeError as e:
                 log_msg = f"failed to create {name}: {e}"
                 logging.error(log_msg)
@@ -276,20 +339,101 @@ def main():
                 log_msg = f"Unknown Error: Failed to create user {name} - {details['email']}"
                 logging.error(log_msg)
                 print(log_msg)
+            if PCG_Enable == True and user_created == True and str(details['xiq_role']) in PCG_Maping:
+                ## add user to PCG if PCG is Enabled
+                policy_id = PCG_Maping[details['xiq_role']]['policy_id']
+                policy_name = PCG_Maping[details['xiq_role']]['policy_name']
+                user_group_name = PCG_Maping[details['xiq_role']]['UserGroupName']
+                email = details["email"]
+                result = ''
+                try:
+                    result = addUserToPcg(policy_id, name, email, user_group_name)
+                except TypeError as e:
+                    log_msg = f"failed to add {name} to pcg {policy_name}: {e}"
+                    logging.error(log_msg)
+                    print(log_msg)
+                except:
+                    log_msg = f"Unknown Error: Failed to add user {name} - {details['email']} to pcg {policy_name}"
+                    logging.error(log_msg)
+                    print(log_msg)
+                if result == 'Success':
+                    log_msg = f"User {name} - was successfully add to pcg {policy_name}."
+                    logging.info(log_msg)
+                    print(log_msg) 
+
         elif any(d == details['userAccountControl'] for d in ldap_disable_codes):
             ldap_disabled.append(name)
     
     # Remove disabled accounts from ldap users
     for name in ldap_disabled:
         del ldap_users[name]
+
+    if PCG_Enable == True:
+        # Collect PCG Users if PCG is Enabled
+        PCGUsers = []
+        for policy in PCG_Maping:
+            policy_id = PCG_Maping[policy]['policy_id']
+
+            try:
+                PCGUsers += retrievePCGUsers(policy_id)
+            except TypeError as e:
+                print(e)
+                print("script exiting....")
+                # not having ppsk will break later line - if not any(d['name'] == name for d in ppsk_users):
+                raise SystemExit
+            except:
+                log_msg = ("Unknown Error: Failed to retrieve users from XIQ")
+                logging.error(log_msg)
+                print(log_msg)
+                print("script exiting....")
+                # not having ppsk will break later line - if not any(d['name'] == name for d in ppsk_users):
+                raise SystemExit
+        log_msg = "Successfully parsed " + str(len(PCGUsers)) + " PCG users"
+        logging.info(log_msg)
+        print(f"{log_msg}\n")
+
     if ldap_capture_success:
         for x in ppsk_users:
+            user_group_id = x['user_group_id']
             email = x['email_address']
-            xiqid = x['id']
+            xiq_id = x['id']
             # check if any xiq user is not included in active ldap users
             if not any(d['email'] == email for d in ldap_users.values()):
+                if PCG_Enable == True and str(user_group_id) in PCG_Maping:
+                    # If PCG is Enabled, Users need to be deleted from PCG group before they can be deleted from User Group
+                    if any(d['email'] == email for d in PCGUsers):
+                        # Find specific PCG user and get the user id
+                        PCGUser = (list(filter(lambda PCGUser: PCGUser['email'] == email, PCGUsers)))[0]
+                        pcg_id = PCGUser['id']
+                        for PCG_Map in PCG_Maping.values():
+                            if PCG_Map['UserGroupName'] == PCGUser['user_group_name']:
+                                policy_id = PCG_Map['policy_id']
+                                policy_name = PCG_Map['policy_name']
+                        result = ''
+                        try:
+                            result = deletePCGUsers(policy_id, pcg_id)
+                        except TypeError as e:
+                            logmsg = f"Failed to delete user {email} from PCG group {policy_name} with error {e}"
+                            logging.error(logmsg)
+                            print(logmsg)
+                            continue
+                        except:
+                            log_msg = f"Unknown Error: Failed to delete user {email} from pcg group {policy_name}"
+                            logging.error(log_msg)
+                            print(log_msg)
+                            continue
+                        if result == 'Success':
+                            log_msg = f"User {email} - {pcg_id} was successfully deleted from pcg group {policy_name}."
+                            logging.info(log_msg)
+                            print(log_msg) 
+                        else:
+                            log_msg = f"User {email} - {pcg_id} was not successfully deleted from pcg group {policy_name}. User cannot be deleted from the PPSK Group."
+                            logging.info(log_msg)
+                            print(log_msg) 
+                            continue
+                result = ''
                 try:
-                    result, userid = deleteuser(xiqid)
+                    result, userid = deleteUser(xiq_id)
                 except TypeError as e:
                     logmsg = f"Failed to delete user {email}  with error {e}"
                     logging.error(logmsg)
@@ -304,6 +448,7 @@ def main():
                     log_msg = f"User {email} - {userid} was successfully deleted."
                     logging.info(log_msg)
                     print(log_msg)  
+
     else:
         log_msg = "No users will be deleted from XIQ because of the error(s) in reading ldap users"
         logging.warning(log_msg)
