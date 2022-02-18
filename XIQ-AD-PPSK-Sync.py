@@ -8,8 +8,8 @@ from ldap3 import Server, Connection, ALL, NTLM, SUBTREE
 ####################################
 # written by:   Tim Smith
 # e-mail:       tismith@extremenetworks.com
-# date:         ? December 2021
-# version:      2.0.5
+# date:         17 February 2022
+# version:      2.0.6
 ####################################
 
 
@@ -18,6 +18,11 @@ server_name = "enter the server name/ IP"
 domain_name = "enter the domain name"
 user_name = "enter AD username"
 password = " enter AD password"
+
+#AD MaxPageSize 
+page = 1000
+#AD Filter to search
+AD_Filter = ""
 
 #XIQ_username = "enter your ExtremeCloudIQ Username"
 #XIQ_password = "enter your ExtremeCLoudIQ password"
@@ -68,15 +73,30 @@ def retrieveADUsers(ad_group):
         SearchBase = 'DC=' + ',DC='.join(subdir_list) + ',DC=' + tdl
     else:
         SearchBase = 'DC=' + tdl
+    ad_result = []
     try:
         server = Server(server_name, get_info=ALL)
         conn = Connection(server, user='{}\\{}'.format(domain_name, user_name), password=password, authentication=NTLM, auto_bind=True)
         conn.search(
+            search_base= SearchBase,
+            search_filter='(&(objectClass=user)(memberof:1.2.840.113556.1.4.1941:={}){})'.format(ad_group,AD_Filter),
+            search_scope=SUBTREE,
+            attributes = ['objectClass', 'userAccountControl', 'sAMAccountName', 'name', 'mail'],
+            paged_size = page)
+        ad_result.extend(conn.entries)
+        print(f"completed page of AD Users. Total Users collected is {len(ad_result)}")
+        cookie = conn.result['controls']['1.2.840.113556.1.4.319']['value']['cookie']
+        while cookie:
+            conn.search(
                 search_base= SearchBase,
-                search_filter='(&(objectClass=user)(memberof:1.2.840.113556.1.4.1941:={}))'.format(ad_group),
+                search_filter='(&(objectClass=user)(memberof:1.2.840.113556.1.4.1941:={}){})'.format(ad_group,AD_Filter),
                 search_scope=SUBTREE,
-                attributes = ['objectClass', 'userAccountControl', 'sAMAccountName', 'name', 'mail'])
-        ad_result = conn.entries
+                attributes = ['objectClass', 'userAccountControl', 'sAMAccountName', 'name', 'mail'],
+                paged_size = page,
+                paged_cookie = cookie)
+            ad_result.extend(conn.entries)
+            print(f"completed page of AD Users. Total Users collected is {len(ad_result)}")
+            cookie = conn.result['controls']['1.2.840.113556.1.4.319']['value']['cookie']
         conn.unbind()
         return ad_result
     except:
@@ -119,7 +139,6 @@ def createPPSKuser(name,mail, usergroupID):
 
     payload = json.dumps({"user_group_id": usergroupID ,"name": name,"user_name": name,"password": "", "email_address": mail, "email_password_delivery": mail})
 
-    #print("Trying to create user using this URL and payload " + url)
     response = requests.post(url, headers=headers, data=payload, verify=True)
     if response is None:
         log_msg = "Error adding PPSK user - no response!"
@@ -136,15 +155,18 @@ def createPPSKuser(name,mail, usergroupID):
         logging.info(f"successfully created PPSK user {name}")
         print(f"successfully created PPSK user {name}")
         return True
-    #print(response)
 
 
 
 
 def retrievePPSKUsers(pageSize, usergroupID):
     page = 1
+    pageCount = 1
+    firstCall = True
+
     ppskUsers = []
-    while page < 1000:
+
+    while page <= pageCount:
         url = URL + "/endusers?page=" + str(page) + "&limit=" + str(pageSize) + "&user_group_ids=" + usergroupID
 
         # Get the next page of the ppsk users
@@ -159,21 +181,20 @@ def retrievePPSKUsers(pageSize, usergroupID):
             logging.error(log_msg)
             logging.warning(f"\t\t{response.json()}")
             raise TypeError(log_msg)
-    
-        rawList = response.json()['data']
-        ppskUsers = ppskUsers + rawList
 
-        if len(rawList) == 0:
-            #print("Reached the final page - stopping to retrieve users ")
-            break
-        page = page + 1
+        rawList = response.json()
+        ppskUsers = ppskUsers + rawList['data']
+
+        if firstCall == True:
+            pageCount = rawList['total_pages']
+        print(f"completed page {page} of {rawList['total_pages']} collecting PPSK Users")
+        page = rawList['page'] + 1 
     return ppskUsers
 
 
 
 def deleteUser(userId):
     url = URL + "/endusers/" + str(userId)
-    #print("\nTrying to delete user using this URL and payload\n " + url)
     response = requests.delete(url, headers=headers, verify=True)
     if response is None:
         log_msg = f"Error deleting PPSK user {userId} - no response!"
@@ -182,11 +203,11 @@ def deleteUser(userId):
     elif response.status_code != 200:
         log_msg = f"Error deleting PPSK user {userId} - HTTP Status Code: {str(response.status_code)}"
         logging.error(log_msg)
-        logging.warning(f"\t\t{response}")
+        logging.warning(f"\t\t{response.json()}")
         raise TypeError(log_msg)
     elif response.status_code == 200:
         return 'Success', str(userId)
-    #print(response)
+    
 
 def addUserToPcg(policy_id, name, email, user_group_name):
     url = URL + "/pcgs/key-based/network-policy-" + str(policy_id) + "/users"
@@ -224,7 +245,6 @@ def retrievePCGUsers(policy_id):
         logging.error(log_msg)
         logging.warning(f"\t\t{response.json()}")
         raise TypeError(log_msg)
-
     rawList = response.json()
     return rawList
 
@@ -285,15 +305,13 @@ def main():
             raise SystemExit
     log_msg = ("Successfully parsed " + str(len(ppsk_users)) + " XIQ users")
     logging.info(log_msg)
-    print(f"\n{log_msg}")
+    print(f"{log_msg}\n")
 
     # Collect LDAP Users
     ldap_users = {}
     ldap_capture_success = True
     for ad_group, xiq_user_role in group_roles:
         ad_result = retrieveADUsers(ad_group)
-        #print("\nParsing all users from LDAP:\n")
-
         for ldap_entry in ad_result:
             if str(ldap_entry.name) not in ldap_users:
                 try:
@@ -303,7 +321,6 @@ def main():
                         "username": str(ldap_entry.sAMAccountName),
                         "xiq_role": xiq_user_role
                     }
-
                 except:
                     log_msg = (f"Unexpected error: {sys.exc_info()[0]}")
                     logging.error(log_msg)
@@ -319,6 +336,12 @@ def main():
     logging.info(log_msg)
     print(f"{log_msg}\n")
 
+    # Track Error counts
+    ppsk_create_error = 0
+    pcg_create_error = 0
+    ppsk_del_error = 0
+    pcg_del_error = 0
+
     # Create PPSK Users
     ldap_disabled = []
     for name, details in ldap_users.items():
@@ -328,17 +351,19 @@ def main():
             logging.warning(log_msg)
             print(log_msg)
             continue
-        if not any(d['name'] == name for d in ppsk_users) and not any(d == details['userAccountControl'] for d in ldap_disable_codes):
+        if not any(d['user_name'] == name for d in ppsk_users) and not any(d == details['userAccountControl'] for d in ldap_disable_codes):
             try:
                 user_created = createPPSKuser(name, details["email"], details['xiq_role'])
             except TypeError as e:
                 log_msg = f"failed to create {name}: {e}"
                 logging.error(log_msg)
                 print(log_msg)
+                ppsk_create_error+=1
             except:
                 log_msg = f"Unknown Error: Failed to create user {name} - {details['email']}"
                 logging.error(log_msg)
                 print(log_msg)
+                ppsk_create_error+=1
             if PCG_Enable == True and user_created == True and str(details['xiq_role']) in PCG_Maping:
                 ## add user to PCG if PCG is Enabled
                 policy_id = PCG_Maping[details['xiq_role']]['policy_id']
@@ -352,14 +377,17 @@ def main():
                     log_msg = f"failed to add {name} to pcg {policy_name}: {e}"
                     logging.error(log_msg)
                     print(log_msg)
+                    pcg_create_error+=1
                 except:
                     log_msg = f"Unknown Error: Failed to add user {name} - {details['email']} to pcg {policy_name}"
                     logging.error(log_msg)
                     print(log_msg)
+                    pcg_create_error+=1
                 if result == 'Success':
                     log_msg = f"User {name} - was successfully add to pcg {policy_name}."
                     logging.info(log_msg)
-                    print(log_msg) 
+                    print(log_msg)
+                    pcg_create_error+=1
 
         elif any(d == details['userAccountControl'] for d in ldap_disable_codes):
             ldap_disabled.append(name)
@@ -367,8 +395,9 @@ def main():
     # Remove disabled accounts from ldap users
     for name in ldap_disabled:
         del ldap_users[name]
-
+    
     if PCG_Enable == True:
+        pcg_capture_success = True
         # Collect PCG Users if PCG is Enabled
         PCGUsers = []
         for policy in PCG_Maping:
@@ -378,16 +407,15 @@ def main():
                 PCGUsers += retrievePCGUsers(policy_id)
             except TypeError as e:
                 print(e)
-                print("script exiting....")
+                pcg_capture_success = False
                 # not having ppsk will break later line - if not any(d['name'] == name for d in ppsk_users):
-                raise SystemExit
             except:
                 log_msg = ("Unknown Error: Failed to retrieve users from XIQ")
                 logging.error(log_msg)
                 print(log_msg)
-                print("script exiting....")
+                pcg_capture_success = False
                 # not having ppsk will break later line - if not any(d['name'] == name for d in ppsk_users):
-                raise SystemExit
+
         log_msg = "Successfully parsed " + str(len(PCGUsers)) + " PCG users"
         logging.info(log_msg)
         print(f"{log_msg}\n")
@@ -400,6 +428,14 @@ def main():
             # check if any xiq user is not included in active ldap users
             if not any(d['email'] == email for d in ldap_users.values()):
                 if PCG_Enable == True and str(user_group_id) in PCG_Maping:
+                    if pcg_capture_success == False:
+                        log_msg = f"Due to PCG read failure, user {email} cannot be deleted"
+                        logging.error(log_msg)
+                        print(log_msg)
+                        ppsk_del_error+=1
+                        pcg_del_error+=1
+                        continue
+                # not having ppsk will break later line - if not any(d['name'] == name for d in ppsk_users):
                     # If PCG is Enabled, Users need to be deleted from PCG group before they can be deleted from User Group
                     if any(d['email'] == email for d in PCGUsers):
                         # Find specific PCG user and get the user id
@@ -416,20 +452,26 @@ def main():
                             logmsg = f"Failed to delete user {email} from PCG group {policy_name} with error {e}"
                             logging.error(logmsg)
                             print(logmsg)
+                            ppsk_del_error+=1
+                            pcg_del_error+=1
                             continue
                         except:
                             log_msg = f"Unknown Error: Failed to delete user {email} from pcg group {policy_name}"
                             logging.error(log_msg)
                             print(log_msg)
+                            ppsk_del_error+=1
+                            pcg_del_error+=1
                             continue
                         if result == 'Success':
                             log_msg = f"User {email} - {pcg_id} was successfully deleted from pcg group {policy_name}."
                             logging.info(log_msg)
-                            print(log_msg) 
+                            print(log_msg)
                         else:
                             log_msg = f"User {email} - {pcg_id} was not successfully deleted from pcg group {policy_name}. User cannot be deleted from the PPSK Group."
                             logging.info(log_msg)
-                            print(log_msg) 
+                            print(log_msg)
+                            ppsk_del_error+=1
+                            pcg_del_error+=1 
                             continue
                 result = ''
                 try:
@@ -438,16 +480,40 @@ def main():
                     logmsg = f"Failed to delete user {email}  with error {e}"
                     logging.error(logmsg)
                     print(logmsg)
+                    ppsk_del_error+=1
                     continue
                 except:
-                    log_msg = f"Unknown Error: Failed to create user {email} "
+                    log_msg = f"Unknown Error: Failed to delete user {email} "
                     logging.error(log_msg)
                     print(log_msg)
+                    ppsk_del_error+=1
                     continue
                 if result == 'Success':
                     log_msg = f"User {email} - {userid} was successfully deleted."
                     logging.info(log_msg)
-                    print(log_msg)  
+                    print(log_msg)
+                else:
+                    log_msg = f"User {email} - {userid} did not successfully delete from the PPSK Group."
+                    logging.info(log_msg)
+                    print(log_msg)
+                    ppsk_del_error+=1
+
+        if ppsk_create_error:
+            log_msg = f"There were {ppsk_create_error} errors creating PPSK users on this run."
+            logging.info(log_msg)
+            print(log_msg)
+        if pcg_create_error:
+            log_msg = f"There were {pcg_create_error} errors creating PCG users on this run."
+            logging.info(log_msg)
+            print(log_msg)
+        if ppsk_del_error:
+            log_msg = f"There were {ppsk_del_error} errors deleting PPSK users on this run."
+            logging.info(log_msg)
+            print(log_msg)
+        if pcg_del_error:
+            log_msg = f"There were {pcg_del_error} errors deleting PCG users on this run."
+            logging.info(log_msg)
+            print(log_msg)
 
     else:
         log_msg = "No users will be deleted from XIQ because of the error(s) in reading ldap users"

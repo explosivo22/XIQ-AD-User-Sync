@@ -5,8 +5,8 @@ from ldap3 import Server, Connection, ALL, NTLM, ALL_ATTRIBUTES, ALL_OPERATIONAL
 ####################################
 # written by:   Tim Smith
 # e-mail:       tismith@extremenetworks.com
-# date:         29th November 2021
-# version:      2.0.3
+# date:         17th February 2022
+# version:      2.0.4
 ####################################
 
 # Global Variables - ADD CORRECT VALUES
@@ -16,22 +16,44 @@ user_name = "enter AD username"
 password = " enter AD password"
 distinguished_name = "Enter Distinguished Name string"
 
+#AD MaxPageSize 
+page = 1000
+#AD Filter to search
+AD_Filter = ""
 
 def retrieveADUsers(ad_group):
     #Building search base from domain_name
     subdir_list = domain_name.split('.')
     tdl = subdir_list[-1]
     subdir_list = subdir_list[:-1]
-    SearchBase = 'DC=' + ',DC='.join(subdir_list) + ',DC=' + tdl
+    if subdir_list:
+        SearchBase = 'DC=' + ',DC='.join(subdir_list) + ',DC=' + tdl
+    else:
+        SearchBase = 'DC=' + tdl
+    ad_result = []
     #try:
     server = Server(server_name, get_info=ALL)
     conn = Connection(server, user='{}\\{}'.format(domain_name, user_name), password=password, authentication=NTLM, auto_bind=True)
     conn.search(
+        search_base= SearchBase,
+        search_filter='(&(objectClass=user)(memberof:1.2.840.113556.1.4.1941:={}){})'.format(ad_group,AD_Filter),
+        search_scope=SUBTREE,
+        attributes = ['objectClass', 'userAccountControl', 'sAMAccountName', 'name', 'mail'],
+        paged_size = page)
+    ad_result.extend(conn.entries)
+    print(f"completed page of AD Users. Total Users collected is {len(ad_result)}")
+    cookie = conn.result['controls']['1.2.840.113556.1.4.319']['value']['cookie']
+    while cookie:
+        conn.search(
             search_base= SearchBase,
-            search_filter='(&(objectClass=user)(memberof:1.2.840.113556.1.4.1941:={}))'.format(ad_group),
+            search_filter='(&(objectClass=user)(memberof:1.2.840.113556.1.4.1941:={}){})'.format(ad_group,AD_Filter),
             search_scope=SUBTREE,
-            attributes = ['objectClass', 'userAccountControl', 'sAMAccountName', 'name', 'mail'])
-    ad_result = conn.entries
+            attributes = ['objectClass', 'userAccountControl', 'sAMAccountName', 'name', 'mail'],
+            paged_size = page,
+            paged_cookie = cookie)
+        ad_result.extend(conn.entries)
+        print(f"completed page of AD Users. Total Users collected is {len(ad_result)}")
+        cookie = conn.result['controls']['1.2.840.113556.1.4.319']['value']['cookie']
     conn.unbind()
     return ad_result
     #except:
