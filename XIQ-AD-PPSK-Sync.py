@@ -8,8 +8,8 @@ from ldap3 import Server, Connection, ALL, NTLM, SUBTREE
 ####################################
 # written by:   Tim Smith
 # e-mail:       tismith@extremenetworks.com
-# date:         17 February 2022
-# version:      2.0.6
+# date:         15 June 2022
+# version:      2.0.6.1
 ####################################
 
 
@@ -394,6 +394,7 @@ def main():
     
     # Remove disabled accounts from ldap users
     for name in ldap_disabled:
+        logging.info(f"User {name} is is disabled in AD with disable code {ldap_users[name]['userAccountControl']}.")
         del ldap_users[name]
     
     if PCG_Enable == True:
