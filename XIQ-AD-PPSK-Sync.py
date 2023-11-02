@@ -8,8 +8,8 @@ from ldap3 import Server, Connection, ALL, NTLM, SUBTREE
 ####################################
 # written by:   Tim Smith
 # e-mail:       tismith@extremenetworks.com
-# date:         15 June 2022
-# version:      2.0.6.1
+# date:         2 Nov 2023
+# version:      2.0.6.2
 ####################################
 
 
@@ -330,7 +330,9 @@ def main():
                     # not having ppsk will break later line - for name, details in ldap_users.items():
                     ldap_capture_success = False
                     continue
-
+            else:
+                logging.error(f"User {ldap_entry.name} has multiple entries. This entry will not be added to PPSK")
+                logging.warning(f"{ldap_entry}")
 
     log_msg = "Successfully parsed " + str(len(ldap_users)) + " LDAP users"
     logging.info(log_msg)
@@ -387,7 +389,6 @@ def main():
                     log_msg = f"User {name} - was successfully add to pcg {policy_name}."
                     logging.info(log_msg)
                     print(log_msg)
-                    pcg_create_error+=1
 
         elif any(d == details['userAccountControl'] for d in ldap_disable_codes):
             ldap_disabled.append(name)
