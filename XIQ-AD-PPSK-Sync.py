@@ -8,8 +8,8 @@ from ldap3 import Server, Connection, ALL, NTLM, SUBTREE
 ####################################
 # written by:   Tim Smith
 # e-mail:       tismith@extremenetworks.com
-# date:         22 Jan 2024
-# version:      2.0.7
+# date:         3 Oct 2024
+# version:      2.0.8
 ####################################
 
 
