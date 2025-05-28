@@ -1,20 +1,25 @@
-# PCG API Script Notice – Release 25r3
+# Overview:
 
-### ⚠️ Important Update for PCG API Users
+This guide covers setting up and running the script to sync your local domain Active directory users with the Private Pre-shared-key (PPSK) within ExtremeCloud IQ (XIQ) public cloud only. PPSK is a solution provided by Extreme Networks to fill in the gap between a Wi-Fi SSID solution using a single PSK for all users and deploying a complete 802.1X solution. Extreme Networks' PPSK solution allows the creation of a dedicated key for each user or device on the identical SSID, limiting the number of SSIDs broadcasting in the air and minimizing airtime consumption due to overhead management frames. This solution also adds the ability to assign VLANs based on user/device groups to avoid the need for separate SSIDs to segregate these groups.
 
-With the upcoming **25r3 release**, the PCG API will be updated to support **pagination**. This change aligns with how other APIs like PPSK operate, enabling you to retrieve users in pages (e.g., 100 users at a time).
+This guide enables you to leverage your existing Active Directory security groups to automatically create a Private Pre-shared key for every AD user and remove the PPSK user if a user is disabled or removed from the group in the AD server.
 
-#### What This Means for You
+Each AD user must have a unique email address for this script to work correctly.
 
-If you're using an existing script that interacts with the PCG API, **it will break** once 25r3 is deployed. The current script does not support the new pagination logic.
 
-- By default, **only 10 users will be returned** in each API response if your script is not updated.
-- This means your existing script may appear to work but will only process a subset of users, leading to incomplete results.
+### Target Audience: Technical
 
-#### Required Action
 
-A new version of the script (**v2.1.0**) will be released to support pagination. You will need to **upgrade to v2.1.0** to continue using the API successfully after the 25r3 update.
+#### PPSK Use Cases:
 
----
+* Identity for IoT devices
 
-Stay tuned for the release announcement and updated usage instructions.
+* BYOD for employees
+
+* Staff device onboarding
+
+* Secure Guest Onboarding (time-based keys with employee sponsorship)
+
+* Hospitality vertical using the hyper-segmentation feature, Private Client Groups (PCGs)
+
+* Third-party via API integration
